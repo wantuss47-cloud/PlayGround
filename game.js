@@ -29,6 +29,7 @@ const state = {
   money: 12400,
   missionIndex: 0,
   objectiveCompleted: [false, false, false],
+  rutDepth: {},
   activeBtn: 'drive',
   lowRange: true,
   awd: true,
@@ -74,6 +75,37 @@ const player = {
 };
 
 const keyState = {};
+
+function saveGame() {
+  try {
+    localStorage.setItem('taiga-save-v1', JSON.stringify({
+      money: state.money,
+      objectiveCompleted: state.objectiveCompleted,
+      build: state.build,
+      tirePressure: state.tirePressure,
+      player: { x: player.x, y: player.y, fuel: player.fuel, engine: player.engine, chassis: player.chassis, tyres: player.tyres },
+      rutDepth: state.rutDepth
+    }));
+  } catch (error) {
+    // The prototype remains playable when storage is disabled.
+  }
+}
+
+try {
+  const saved = JSON.parse(localStorage.getItem('taiga-save-v1') || 'null');
+  if (saved) {
+    if (Number.isFinite(saved.money)) state.money = saved.money;
+    if (Array.isArray(saved.objectiveCompleted) && saved.objectiveCompleted.length === 3) state.objectiveCompleted = saved.objectiveCompleted;
+    if (saved.build) Object.assign(state.build, saved.build);
+    if (Number.isFinite(saved.tirePressure)) state.tirePressure = saved.tirePressure;
+    if (saved.player) Object.assign(player, saved.player);
+    if (saved.rutDepth && typeof saved.rutDepth === 'object') state.rutDepth = saved.rutDepth;
+    state.missionIndex = Math.min(state.objectiveCompleted.filter(Boolean).length, 2);
+  }
+} catch (error) {
+  // Ignore corrupt or unavailable local saves and start a fresh sortie.
+}
+
 const terrainTypes = {
   road: { label: 'FIRM TRACK', color: '#708061', traction: 1, drag: 0.98, surface: 0.25 },
   mud: { label: 'THAW MUD', color: '#6b5645', traction: 0.48, drag: 0.9, surface: 0.8 },
@@ -129,7 +161,7 @@ function distanceToPoint(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function sampleTerrain(x, y) {
+function sampleTerrainBase(x, y) {
   const roadDistance = getRoadDistance(x, y);
   if (roadDistance < 60) return { ...terrainTypes.road, type: 'road', traction: 1.0, drag: 0.99, surface: 0.22 };
 
@@ -148,6 +180,22 @@ function sampleTerrain(x, y) {
   if (n > 0.62) return { ...terrainTypes.snow, type: 'snow', traction: 0.7, drag: 0.97, surface: 0.52 };
   if (n < -0.25) return { ...terrainTypes.rock, type: 'rock', traction: 0.58, drag: 0.9, surface: 0.68 };
   return { ...terrainTypes.mud, type: 'mud', traction: 0.44, drag: 0.76, surface: 0.82 };
+}
+
+function rutKey(x, y) {
+  const cell = 44;
+  return `${Math.floor(x / cell)},${Math.floor(y / cell)}`;
+}
+
+function sampleTerrain(x, y) {
+  const terrain = sampleTerrainBase(x, y);
+  const rut = state.rutDepth[rutKey(x, y)] || 0;
+  if (rut > 0) {
+    terrain.traction *= 1 - rut * 0.34;
+    terrain.drag *= 1 - rut * 0.22;
+    terrain.surface = Math.min(1.8, terrain.surface + rut * 0.35);
+  }
+  return terrain;
 }
 
 function getRoadDistance(x, y) {
@@ -451,23 +499,18 @@ function updateMission() {
 }
 
 function checkMission() {
-  for (let i = 0; i < missionStops.length; i += 1) {
-    const stop = missionStops[i];
-    const dist = distanceToPoint(player, stop);
-    if (!state.objectiveCompleted[i] && dist < stop.radius) {
-      state.objectiveCompleted[i] = true;
-      if (i === 0) showToast('OLD LOGGING ROAD SECURED');
-      if (i === 1) showToast('BOG LINE CROSSED');
-      if (i === 2) showToast('RIDGE BEACON REACHED');
-      state.missionIndex = Math.min(i + 1, missionStops.length - 1);
-      break;
-    }
+  const i = state.missionIndex;
+  const stop = missionStops[i];
+  if (stop && !state.objectiveCompleted[i] && distanceToPoint(player, stop) < stop.radius) {
+    state.objectiveCompleted[i] = true;
+    const rewards = [1500, 2200, 3500];
+    state.money += rewards[i];
+    if (i === 0) showToast(`OLD LOGGING ROAD SECURED · ₽${formatCash(rewards[i])}`);
+    if (i === 1) showToast(`BOG LINE CROSSED · ₽${formatCash(rewards[i])}`);
+    if (i === 2) showToast(`RIDGE BEACON REACHED · ₽${formatCash(rewards[i])}`);
+    state.missionIndex = Math.min(i + 1, missionStops.length - 1);
+    saveGame();
   }
-
-  if (state.objectiveCompleted.every(Boolean)) {
-    showToast('MISSION COMPLETE — CALL IN THE CREW', 2200);
-  }
-
   updateMission();
 }
 
@@ -495,6 +538,20 @@ function drawWorld() {
       ctx.fillRect(px, py, world.tile + 1, world.tile + 1);
     }
   }
+
+  for (const [key, depth] of Object.entries(state.rutDepth)) {
+    if (depth < 0.06) continue;
+    const [cellX, cellY] = key.split(',').map(Number);
+    const rx = cellX * 44 + 22 - viewX;
+    const ry = cellY * 44 + 22 - viewY;
+    if (rx < -30 || ry < -30 || rx > visibleW + 30 || ry > visibleH + 30) continue;
+    ctx.globalAlpha = Math.min(0.42, depth * 0.42);
+    ctx.fillStyle = '#211d17';
+    ctx.beginPath();
+    ctx.ellipse(rx, ry, 13 + depth * 12, 8 + depth * 8, 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -671,6 +728,7 @@ function updateVehicleUI() {
 }
 
 function updateState(dt) {
+  state.time += dt;
   const stats = getVehicleStats();
   let terrain = sampleTerrain(player.x, player.y);
   const maxSpeed = stats.maxSpeed;
@@ -716,6 +774,11 @@ function updateState(dt) {
   player.x = clamp(player.x, 30, world.width - 30);
   player.y = clamp(player.y, 30, world.height - 30);
   terrain = sampleTerrain(player.x, player.y);
+  if ((terrain.type === 'mud' || terrain.type === 'peat') && Math.abs(player.speed) > 2) {
+    const key = rutKey(player.x, player.y);
+    const compaction = dt * terrain.surface * (0.012 + player.slip / 100 * 0.045);
+    state.rutDepth[key] = clamp((state.rutDepth[key] || 0) + compaction, 0, 1);
+  }
 
   if (terrain.type === 'water') {
     const riverPush = 0.15 + (player.speed * 0.02);
@@ -807,6 +870,7 @@ function updateState(dt) {
   player.y = clamp(player.y, 30, world.height - 30);
   checkMission();
   updateVehicleUI();
+  if (Math.floor(state.time / 8) !== Math.floor((state.time - dt) / 8)) saveGame();
 }
 
 function syncBuildSummary() {

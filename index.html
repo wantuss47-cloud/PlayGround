@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#101815" />
+  <title>RUTLINE — Northbound</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Rutline home"><span class="brand-mark">R</span><span>RUT<span class="brand-light">LINE</span></span></a>
+      <div class="season"><i></i><span>KARELIAN TAIGA</span><b>·</b><span>EXPEDITION 01</span></div>
+      <div class="top-actions"><span class="weather"><span class="weather-icon">◌</span> LIGHT RAIN <b>+4°</b></span><button class="icon-btn" id="soundBtn" title="Toggle sound">♫</button><button class="icon-btn" id="pauseBtn" title="Pause">Ⅱ</button></div>
+    </header>
+    <section class="game-layout">
+      <aside class="left-rail">
+        <section class="mission-card panel">
+          <div class="eyebrow"><span class="live-dot"></span> ACTIVE CONTRACT <span class="contract-id">#01</span></div>
+          <h1>Last mile<br><em>to Vysoky</em></h1>
+          <p class="mission-copy">Get the generator crate to the ridge relay station before the storm closes the pass.</p>
+          <div class="cargo-row"><span class="cargo-icon">▦</span><div><b>GENERATOR CRATE</b><small>Fragile cargo · 1.2 t</small></div><span class="cargo-status" id="cargoStatus">SECURED</span></div>
+          <div class="progress-line"><span id="progressFill"></span></div>
+          <div class="distance-row"><span>ROUTE PROGRESS</span><b id="distanceReadout">0.0 / 2.8 km</b></div>
+          <div class="mission-target"><span class="target-pin">⌖</span><div><small>DESTINATION</small><b>Vysoky ridge relay</b></div><span class="target-distance" id="targetDistance">2.8 km</span></div>
+          <button class="route-btn" id="routeBtn"><span>⌖</span> ROUTE OVERVIEW <span class="arrow">↗</span></button>
+        </section>
+        <section class="conditions panel">
+          <div class="section-title">FIELD CONDITIONS <span>LIVE</span></div>
+          <div class="condition-row"><span class="condition-symbol mud-symbol">≈</span><div><b id="terrainName">PEAT BOG</b><small id="terrainDesc">Soft ground · deep ruts</small></div><span class="condition-meter"><i></i><i></i><i></i><i class="dim"></i></span></div>
+          <div class="condition-row"><span class="condition-symbol">⌁</span><div><b>WIND</b><small>North-west · 12 km/h</small></div><span class="mono-value">12<span>km/h</span></span></div>
+          <div class="condition-row"><span class="condition-symbol">☷</span><div><b>VISIBILITY</b><small>Rain haze · 450 m</small></div><span class="mono-value">450<span>m</span></span></div>
+        </section>
+        <div class="tip-card"><span class="tip-mark">i</span><p><b>FIELD NOTE</b><br>Drop tire pressure in the bog. Lock the diffs before the wheels start digging.</p></div>
+      </aside>
+      <section class="world-panel" id="worldPanel">
+        <canvas id="gameCanvas" aria-label="Playable off-road driving area"></canvas>
+        <div class="map-label label-bog"><span>01</span> BLACK PEAT BOG</div>
+        <div class="map-label label-river"><span>02</span> KIVI RIVER CROSSING</div>
+        <div class="map-label label-ridge"><span>03</span> VYSOKY RIDGE</div>
+        <div class="world-topline"><span class="coord">N 64° 18.4′ &nbsp; E 31° 42.8′</span><span class="map-mode">FIELD VIEW <b>●</b></span></div>
+        <div class="compass"><span>N</span><i>⌃</i></div>
+        <div class="minimap-wrap"><div class="mini-head"><span>REGION MAP</span><span>▣</span></div><canvas id="miniMap" width="220" height="150"></canvas><div class="mini-legend"><i></i> YOUR ROUTE <b>·</b> <span>●</span> YOU</div></div>
+        <div class="world-caption"><span class="live-dot"></span> TERRAIN SIMULATION <b>ON</b><span class="caption-sep">/</span><span id="simClock">08:42</span></div>
+        <div class="vehicle-tag"><span class="vehicle-tag-icon">▰</span><div><b id="vehicleNameTag">469 EXPEDITION</b><small id="vehicleTagSub">4×4 · 2.5L PETROL</small></div><span class="tag-chevron">⌄</span></div>
+        <div class="mobile-controls" aria-label="Touch driving controls"><div class="steer-pad"><button data-control="left">◀</button><button data-control="right">▶</button></div><div class="pedal-pad"><button data-control="reverse">REV</button><button data-control="forward">DRIVE</button></div></div>
+        <div class="start-overlay" id="startOverlay"><div class="briefing-card"><div class="briefing-kicker"><span class="live-dot"></span> FIELD BRIEFING <span>01 / 04</span></div><div class="briefing-title">The road ends.<br><em>The work begins.</em></div><p>A washed-out forest track separates the supply depot from a remote ridge relay. No paved detours. No recovery crew. Just the truck, the winch, and whatever the ground decides to do.</p><div class="briefing-meta"><div><small>LOAD</small><b>1.2 T GENERATOR</b></div><div><small>FORECAST</small><b>RAIN · 4°C</b></div><div><small>EST. DISTANCE</small><b>2.8 KM</b></div></div><button class="primary-btn" id="startBtn">START EXPEDITION <span>→</span></button><button class="text-btn" id="garageOpen">TUNE TRUCK FIRST <span>↗</span></button></div></div>
+        <div class="pause-overlay hidden" id="pauseOverlay"><div class="pause-card"><span class="eyebrow">EXPEDITION PAUSED</span><h2>Take a breath.</h2><p>The taiga isn't going anywhere.</p><button class="primary-btn" id="resumeBtn">RESUME DRIVE <span>→</span></button></div></div>
+      </section>
+      <aside class="right-rail">
+        <section class="vehicle-panel panel">
+          <div class="panel-heading"><div><div class="eyebrow">CURRENT VEHICLE</div><h2 id="vehicleName">UAZ 469 <span>· 1978</span></h2></div><button class="more-btn" id="garageOpen2">•••</button></div>
+          <div class="vehicle-illustration"><div class="vehicle-glow"></div><svg viewBox="0 0 360 142" role="img" aria-label="Olive off-road utility truck"><ellipse cx="184" cy="120" rx="138" ry="13" fill="#090e0c" opacity=".55"/><path d="M52 91 65 54q4-11 20-12l105-5q17 0 29 11l28 28 41 8q12 2 17 13l4 15H50z" fill="#73805d"/><path d="m94 49 90-4q14 0 22 9l21 24H85z" fill="#283a32"/><path d="m101 51 35-2v28H90zm42-2 39-2q8 0 14 7l19 23h-72z" fill="#536459"/><path d="m69 60-8 26h21l16-34zM245 83h47l12 10h-56z" fill="#a6a484"/><path d="M57 94h242v13H54z" fill="#42483d"/><circle cx="99" cy="106" r="24" fill="#121715"/><circle cx="99" cy="106" r="12" fill="#77796c"/><circle cx="260" cy="106" r="24" fill="#121715"/><circle cx="260" cy="106" r="12" fill="#77796c"/><path d="M86 106h26m135 0h26" stroke="#b9b6a4" stroke-width="2" opacity=".5"/><rect x="297" y="91" width="10" height="8" rx="2" fill="#d8c178"/><path d="m43 100 13-7m253 5 12 4" stroke="#b6b09b" stroke-width="4" stroke-linecap="round"/></svg><span class="illustration-label">FIELD-READY · CLASSIC SERIES</span></div>
+          <div class="vehicle-specs"><div><small>ENGINE</small><b>2.5L I4</b></div><div><small>POWER</small><b>75 <i>hp</i></b></div><div><small>WEIGHT</small><b>1.7 <i>t</i></b></div><div><small>RANGE</small><b id="rangeValue">240 <i>km</i></b></div></div>
+        </section>
+        <section class="mechanics panel">
+          <div class="section-title">MECHANICALS <button id="repairBtn" title="Repair at service point">SERVICE <span>↗</span></button></div>
+          <div class="fuel-block"><div class="metric-heading"><span>FUEL</span><b id="fuelText">78<span>%</span></b></div><div class="meter fuel-meter"><i id="fuelFill"></i></div><div class="metric-foot"><span>68 / 88 L</span><span>− 0.8 L/min</span></div></div>
+          <div class="condition-block"><div class="metric-heading"><span>ENGINE CONDITION</span><b id="engineText">96<span>%</span></b></div><div class="meter condition-meter-bar"><i id="engineFill"></i></div><div class="condition-parts"><span><i class="part-ok"></i>ENGINE</span><span><i class="part-ok"></i>GEARBOX</span><span><i id="tirePart" class="part-ok"></i>TIRES</span></div></div>
+          <div class="drive-controls"><div class="control-row"><div><b>ALL-WHEEL DRIVE</b><small>Front axle engagement</small></div><button class="toggle active" id="awdToggle"><i></i></button></div><div class="control-row"><div><b>DIFFERENTIAL LOCK</b><small id="diffHint">Both axles · manual</small></div><button class="toggle" id="diffToggle"><i></i></button></div><div class="control-row"><div><b>LOW RANGE</b><small>Transfer case · 3.2:1</small></div><button class="toggle" id="lowToggle"><i></i></button></div></div>
+          <div class="tire-pressure"><div class="pressure-title"><div><b>TIRE PRESSURE</b><small>CTIS · Central inflation</small></div><span><b id="pressureValue">1.4</b> <small>BAR</small></span></div><div class="pressure-control"><button id="pressureDown" aria-label="Lower tire pressure">−</button><input id="pressureSlider" type="range" min="0.5" max="2.4" step="0.1" value="1.4" aria-label="Tire pressure"/><button id="pressureUp" aria-label="Raise tire pressure">+</button></div><div class="pressure-labels"><span>SOFT GROUND</span><span>FIRM SURFACE</span></div></div>
+        </section>
+        <section class="winch-panel panel"><div class="winch-copy"><span class="winch-icon">↗</span><div><b>RECOVERY WINCH</b><small id="winchStatus">Cable ready · 18 m</small></div></div><button class="winch-btn" id="winchBtn"><span>Q</span> WINCH</button></section>
+      </aside>
+    </section>
+    <footer class="bottom-bar"><div class="drive-readout"><span class="speed-number" id="speedReadout">00</span><span class="speed-unit">KM/H</span><span class="gear-badge" id="gearReadout">N</span><span class="terrain-readout"><i></i><b id="terrainFooter">PEAT / SOFT</b></span></div><div class="control-legend"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> DRIVE / STEER</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>E</kbd> AWD <kbd>L</kbd> LOCK <kbd>R</kbd> LOW</span><span><kbd>Q</kbd> WINCH <kbd>C</kbd> CTIS</span></div><div class="footer-state"><i class="live-dot"></i><span id="statusText">AWAITING DEPARTURE</span><span class="footer-divider">|</span><span>BUILD 0.9.4</span></div></footer>
+  </main>
+  <div class="modal-backdrop hidden" id="garageModal"><section class="garage-modal"><div class="garage-head"><div><div class="eyebrow"><span class="live-dot"></span> WORKSHOP · VYSOKY DEPOT</div><h2>Set up for the trail.</h2><p>Every compromise matters. Choose a rig and build it for the ground ahead.</p></div><button class="close-btn" id="garageClose">×</button></div><div class="garage-tabs"><button class="selected" data-tab="vehicles">FLEET <span>05</span></button><button data-tab="upgrades">UPGRADES</button><span class="garage-note">NO UNIVERSAL BUILD. PICK YOUR LINE.</span></div><div class="fleet-grid" id="fleetGrid"></div><div class="upgrade-grid hidden" id="upgradeGrid"></div><div class="garage-foot"><span><i class="live-dot"></i> CHANGES APPLY IMMEDIATELY</span><button class="primary-btn" id="garageDone">BACK TO EXPEDITION <span>→</span></button></div></section></div>
+  <div class="toast" id="toast"></div>
+  <script src="game.js"></script>
+</body>
+</html>

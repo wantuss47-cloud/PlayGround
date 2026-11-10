@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1b1c16" />
+  <title>UAZ TRIAL — Soviet 4×4 Off-Road</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%234b5533'/%3E%3Ccircle cx='9' cy='23' r='4' fill='%231c1b17'/%3E%3Ccircle cx='23' cy='23' r='4' fill='%231c1b17'/%3E%3Cpath d='M5 21v-7h6l3-5h8v12' fill='none' stroke='%23d7c98f' stroke-width='2'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="game" aria-label="UAZ trial game"></canvas>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="panel speed-panel">
+        <div class="eyebrow">UAZ&nbsp;469 <span>//</span> TRIAL</div>
+        <div class="speed-row">
+          <span id="speed">0</span><span class="unit">km/h</span>
+        </div>
+        <div class="gauge"><div id="gaugeFill"></div><div class="gauge-ticks"></div></div>
+        <div class="drive-row">
+          <span id="gear" class="gear">N</span>
+          <span id="driveMode" class="drive-mode">4WD</span>
+          <span id="lockLamp" class="lock-lamp">DIFF</span>
+        </div>
+      </div>
+
+      <div class="panel distance-panel">
+        <div class="eyebrow">DISTANCE</div>
+        <div class="distance-row"><span id="distance">0</span><span class="unit">m</span></div>
+        <div class="best-row">BEST <span id="best">0</span> m</div>
+        <div class="sector-row" id="sectorRow">SECTOR 1</div>
+      </div>
+
+      <div class="top-actions">
+        <div class="coin-pill" id="coinPill" title="Coins">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.4" fill="#f3c349" stroke="#8c641c" stroke-width="1.5"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="#a87823" stroke-width="1" stroke-dasharray="2 2"/><text x="12" y="16.2" text-anchor="middle" font-size="9.5" font-weight="800" fill="#6d4b12" font-family="Arial">₽</text></svg>
+          <span id="coins">0</span>
+        </div>
+        <button id="garageBtn" class="icon-btn" title="Garage (G)" aria-label="Open garage">
+          <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4.4 4.4 0 0 0-5.8 5.8L3.6 17.4a2 2 0 1 0 2.8 2.8l5.3-5.3a4.4 4.4 0 0 0 5.8-5.8l-2.7 2.7-2.4-.4-.4-2.4 2.7-2.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="muteBtn" class="icon-btn" title="Sound (M)" aria-label="Toggle sound">
+          <svg class="ico-on" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <svg class="ico-off" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor"/><path d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <button id="pauseBtn" class="icon-btn" title="Pause (P)" aria-label="Pause">
+          <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="statusStrip">
+      <div class="status" id="diffStatus"><i></i>DIFF LOCK</div>
+      <div class="status" id="winchStatus"><i></i>WINCH</div>
+      <div class="status" id="mudStatus"><i></i>MUD</div>
+      <div class="status" id="upgradeHint"><i></i>GARAGE <b id="nextUpgradeHint">—</b></div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="panel controls-panel" id="desktopControls">
+        <div class="ctrl"><span class="keys"><kbd>W</kbd><kbd>↑</kbd></span><span>Accelerate</span></div>
+        <div class="ctrl"><span class="keys"><kbd>S</kbd><kbd>↓</kbd></span><span>Brake / Reverse</span></div>
+        <div class="ctrl"><span class="keys"><kbd>A</kbd><kbd>D</kbd></span><span>Tilt</span></div>
+        <div class="ctrl"><span class="keys"><kbd>⇧</kbd></span><span>Diff lock</span></div>
+        <div class="ctrl"><span class="keys"><kbd>E</kbd></span><span>Winch</span></div>
+        <div class="ctrl"><span class="keys"><kbd>R</kbd></span><span>Recover</span></div>
+        <div class="ctrl"><span class="keys"><kbd>G</kbd></span><span>Garage</span></div>
+      </div>
+      <div class="recover-cluster">
+        <button id="recoverBtn" class="text-btn"><span>R</span> RECOVER</button>
+      </div>
+    </div>
+
+    <div id="toasts"></div>
+
+    <div id="stuckBanner" class="hidden">
+      <div class="stuck-title">BOGGED DOWN</div>
+      <div class="stuck-sub">Momentum lost. Hook the winch or recover to solid ground.</div>
+      <div class="stuck-actions">
+        <button id="winchHintBtn" class="text-btn primary"><span>E</span> ATTACH WINCH</button>
+        <button id="recoverHintBtn" class="text-btn"><span>R</span> RECOVER</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="touchControls" aria-hidden="true">
+    <div class="touch-side touch-left">
+      <button class="touch-btn" data-ctrl="left" aria-label="Tilt back">◀</button>
+      <button class="touch-btn" data-ctrl="right" aria-label="Tilt forward">▶</button>
+    </div>
+    <div class="touch-side touch-right">
+      <div class="touch-row">
+        <button class="touch-btn small" data-ctrl="diff" aria-label="Differential lock">DIFF</button>
+        <button class="touch-btn small" data-ctrl="winch" aria-label="Winch">WINCH</button>
+      </div>
+      <div class="touch-row">
+        <button class="touch-btn brake" data-ctrl="brake" aria-label="Brake">▼</button>
+        <button class="touch-btn gas" data-ctrl="gas" aria-label="Accelerate">▲</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="startOverlay" class="overlay">
+    <div class="start-panel">
+      <div class="start-kicker">SOVIET 4×4 OFF-ROAD TRIAL</div>
+      <h1>UAZ<span>TRIAL</span></h1>
+      <div class="start-rule"></div>
+      <p class="start-lede">One truck. Endless mud. Keep your momentum, lock the diffs, and drag yourself out with the winch. Every metre pays.</p>
+      <div class="start-stats">
+        <div><b id="startBest">0</b><span>best metres</span></div>
+        <div><b id="startCoins">0</b><span>coins banked</span></div>
+        <div><b id="startSector">1</b><span>sector</span></div>
+      </div>
+      <button id="startBtn" class="big-btn">START ENGINE <span>→</span></button>
+      <button id="startGarageBtn" class="start-garage-btn">FIELD GARAGE <span>₽</span></button>
+      <div class="start-controls">
+        <div><kbd>W</kbd><kbd>S</kbd> throttle / brake</div>
+        <div><kbd>A</kbd><kbd>D</kbd> tilt</div>
+        <div><kbd>Shift</kbd> diff lock</div>
+        <div><kbd>E</kbd> winch</div>
+        <div><kbd>G</kbd> garage</div>
+        <div><kbd>R</kbd> recover</div>
+      </div>
+      <div class="start-foot">Mud pits deepen under wheelspin. Momentum is everything.</div>
+    </div>
+  </div>
+
+  <div id="garageOverlay" class="overlay hidden">
+    <div class="garage-panel">
+      <header class="garage-head">
+        <div>
+          <div class="start-kicker">FIELD WORKSHOP</div>
+          <h2>GARAGE <span>/ ГАРАЖ</span></h2>
+        </div>
+        <div class="garage-balance">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.4" fill="#f3c349" stroke="#8c641c" stroke-width="1.5"/><text x="12" y="16.2" text-anchor="middle" font-size="9.5" font-weight="800" fill="#6d4b12" font-family="Arial">₽</text></svg>
+          <span id="garageCoins">0</span>
+        </div>
+        <button id="garageClose" class="icon-btn close" aria-label="Close garage">✕</button>
+      </header>
+      <p class="garage-sub">Spend coins on the old UAZ. Upgrades are permanent and apply immediately.</p>
+      <div id="upgradeGrid" class="upgrade-grid"></div>
+      <footer class="garage-foot">
+        <div class="garage-tip">TIP — Mud tires float, portals add clearance, the winch buys you a second chance.</div>
+        <button id="resetProgress" class="link-btn">Reset all progress</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="pauseOverlay" class="overlay hidden">
+    <div class="pause-panel">
+      <div class="start-kicker">ENGINE IDLING</div>
+      <h2>PAUSED</h2>
+      <div class="pause-actions">
+        <button id="resumeBtn" class="big-btn">RESUME <span>→</span></button>
+        <button id="pauseGarageBtn" class="text-btn">GARAGE</button>
+        <button id="restartBtn" class="text-btn">RESTART RUN</button>
+      </div>
+      <div class="pause-hint">Progress and coins are saved automatically.</div>
+    </div>
+  </div>
+
+  <div id="rotateHint">↻ Rotate your device for the full view</div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

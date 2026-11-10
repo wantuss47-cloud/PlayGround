@@ -38,6 +38,9 @@ const state = {
   tirePressure: 30,
   radioIndex: 0,
   time: 0,
+  rutClock: 0,
+  ruts: new Map(),
+  campaignCompleteNotified: false,
   build: {
     portalAxles: false,
     lockerRear: false,
@@ -69,6 +72,9 @@ const player = {
   tyres: 91,
   rpm: 850,
   waterDepth: 0,
+  engineTemp: 82,
+  clutchTemp: 38,
+  stalled: false,
   selectedGear: 'N',
   gearMode: 'LOW'
 };
@@ -113,6 +119,27 @@ const radioMessages = [
   'Road map updated: ridge beacon is still visible, but low ground is soft.'
 ];
 
+const campaignBeats = [
+  { time: '00:00—00:45', title: 'Scout the logging spur', detail: 'Reach the old road marker. Learn range selection, traction, and how the UAZ responds on firm track.' },
+  { time: '00:45—01:40', title: 'Survey the bog line', detail: 'Cross the thawed low ground and river bend. Manage wheelspin, water depth, engine temperature, and recovery.' },
+  { time: '01:40—02:30', title: 'Climb to the ridge beacon', detail: 'Complete the three field objectives and radio the scout team from the ridge.' },
+  { time: '02:30—03:00', title: 'Debrief & prepare', detail: 'Return to the workshop, repair and configure the UAZ-469, then plan the next contract. Fleet entries beyond the UAZ are campaign concepts, not playable vehicles yet.' }
+];
+
+function renderCampaignTimeline() {
+  const timeline = document.getElementById('timeline');
+  const completedObjectives = state.objectiveCompleted.filter(Boolean).length;
+  const activeBeat = Math.min(completedObjectives, campaignBeats.length - 1);
+
+  timeline.innerHTML = campaignBeats.map((beat, index) => {
+    const completed = index < activeBeat || (index === activeBeat && completedObjectives >= missionStops.length);
+    const active = index === activeBeat && !completed;
+    const statusClass = completed ? 'completed' : active ? 'active' : '';
+    const currentAttribute = active ? ' aria-current="step"' : '';
+    return `<article class="timeline-item ${statusClass}" role="listitem"${currentAttribute}><small>${beat.time}</small><b>${beat.title}</b><p>${beat.detail}</p></article>`;
+  }).join('');
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -129,7 +156,7 @@ function distanceToPoint(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function sampleTerrain(x, y) {
+function sampleTerrainBase(x, y) {
   const roadDistance = getRoadDistance(x, y);
   if (roadDistance < 60) return { ...terrainTypes.road, type: 'road', traction: 1.0, drag: 0.99, surface: 0.22 };
 
@@ -148,6 +175,37 @@ function sampleTerrain(x, y) {
   if (n > 0.62) return { ...terrainTypes.snow, type: 'snow', traction: 0.7, drag: 0.97, surface: 0.52 };
   if (n < -0.25) return { ...terrainTypes.rock, type: 'rock', traction: 0.58, drag: 0.9, surface: 0.68 };
   return { ...terrainTypes.mud, type: 'mud', traction: 0.44, drag: 0.76, surface: 0.82 };
+}
+
+function rutKey(x, y) {
+  return `${Math.floor(x / world.tile)},${Math.floor(y / world.tile)}`;
+}
+
+function sampleTerrain(x, y) {
+  const terrain = sampleTerrainBase(x, y);
+  const rut = state.ruts.get(rutKey(x, y)) || 0;
+  if (rut > 0) {
+    terrain.traction *= 1 - rut * 0.36;
+    terrain.drag *= 1 - rut * 0.12;
+    terrain.surface += rut * 0.42;
+    terrain.rut = rut;
+  }
+  return terrain;
+}
+
+function deformGround(terrain, dt) {
+  if (terrain.type === 'road' || terrain.type === 'water' || Math.abs(player.speed) < 2) return;
+  const key = rutKey(player.x, player.y);
+  const current = state.ruts.get(key) || 0;
+  const wheelLoad = terrain.type === 'peat' ? 0.09 : terrain.type === 'mud' ? 0.06 : 0.025;
+  const spin = 0.25 + player.slip / 100;
+  state.ruts.set(key, Math.min(1, current + wheelLoad * spin * dt));
+  state.rutClock += dt;
+  if (state.rutClock > 14 && state.ruts.size > 850) {
+    const oldest = state.ruts.keys().next().value;
+    state.ruts.delete(oldest);
+    state.rutClock = 0;
+  }
 }
 
 function getRoadDistance(x, y) {
@@ -419,14 +477,17 @@ function updateMission() {
     'TEST THE BOG LINE',
     'TOP OUT AT THE RIDGE BEACON'
   ];
+  const descriptions = [
+    'Reach the old logging road marker. The thaw has turned the low ground to soup.',
+    'Cross the bog line and river bend. Watch wheelspin, water depth, and drivetrain temperatures.',
+    'Climb to the ridge beacon and get the scout team on the radio.'
+  ];
+  const complete = progress === missionStops.length;
 
-  mission.textContent = missionStops[state.missionIndex].label === 'Ridge beacon' ? 'The Ridge Beacon' : 'The Old Logging Road';
-  desc.textContent =
-    state.missionIndex === 0
-      ? 'Reach the ridge marker. Keep to the old logging road; the thaw has turned the low ground to soup.'
-      : state.missionIndex === 1
-        ? 'Cross the bog line without frying the clutch. Keep wheel spin under control and avoid dead stopping.'
-        : 'Climb to the ridge, anchor, and get the scout team on the radio.';
+  mission.textContent = complete ? 'Field Operation Complete' : missionStops[state.missionIndex].label;
+  desc.textContent = complete
+    ? 'The scout team is on the radio. Return to the workshop, repair the UAZ, and prepare for the next contract.'
+    : descriptions[state.missionIndex];
 
   objectiveList.innerHTML = missionStops.map((stop, idx) => {
     const complete = state.objectiveCompleted[idx];
@@ -456,6 +517,7 @@ function checkMission() {
     const dist = distanceToPoint(player, stop);
     if (!state.objectiveCompleted[i] && dist < stop.radius) {
       state.objectiveCompleted[i] = true;
+      renderCampaignTimeline();
       if (i === 0) showToast('OLD LOGGING ROAD SECURED');
       if (i === 1) showToast('BOG LINE CROSSED');
       if (i === 2) showToast('RIDGE BEACON REACHED');
@@ -464,7 +526,8 @@ function checkMission() {
     }
   }
 
-  if (state.objectiveCompleted.every(Boolean)) {
+  if (state.objectiveCompleted.every(Boolean) && !state.campaignCompleteNotified) {
+    state.campaignCompleteNotified = true;
     showToast('MISSION COMPLETE — CALL IN THE CREW', 2200);
   }
 
@@ -493,6 +556,15 @@ function drawWorld() {
       const py = y - viewY;
       ctx.fillStyle = terrain.color;
       ctx.fillRect(px, py, world.tile + 1, world.tile + 1);
+      const rut = state.ruts.get(rutKey(x + world.tile * 0.5, y + world.tile * 0.5)) || 0;
+      if (rut > 0.08 && terrain.type !== 'road') {
+        ctx.fillStyle = `rgba(19, 24, 19, ${0.12 + rut * 0.3})`;
+        ctx.fillRect(px + 5, py + 2, 5 + rut * 3, world.tile - 4);
+        ctx.fillRect(px + 20, py + 2, 5 + rut * 3, world.tile - 4);
+        ctx.fillStyle = `rgba(202, 196, 160, ${rut * 0.16})`;
+        ctx.fillRect(px + 10, py + 3, 2, world.tile - 6);
+        ctx.fillRect(px + 25, py + 3, 2, world.tile - 6);
+      }
     }
   }
 
@@ -628,6 +700,8 @@ function updateVehicleUI() {
   const chassisValue = document.getElementById('chassisValue');
   const tireValue = document.getElementById('tireValue');
   const efficiency = document.getElementById('efficiency');
+  const engineTempValue = document.getElementById('engineTemp');
+  const clutchTempValue = document.getElementById('clutchTemp');
   const engineBar = document.getElementById('engineBar');
   const chassisBar = document.getElementById('chassisBar');
   const fuelBar = document.getElementById('fuelBar');
@@ -655,6 +729,12 @@ function updateVehicleUI() {
   chassisValue.textContent = `${Math.round(player.chassis)}%`;
   tireValue.textContent = `${Math.round(player.tyres)}%`;
   efficiency.textContent = (5.2 + (state.build.portalAxles ? 0.3 : 0)).toFixed(1);
+  engineTempValue.textContent = `${Math.round(player.engineTemp)}°C`;
+  clutchTempValue.textContent = `${Math.round(player.clutchTemp)}°C`;
+  engineTempValue.classList.toggle('thermal-hot', player.engineTemp >= 110);
+  clutchTempValue.classList.toggle('thermal-hot', player.clutchTemp >= 120);
+  engineTempValue.classList.toggle('thermal-critical', player.engineTemp >= 130);
+  clutchTempValue.classList.toggle('thermal-critical', player.clutchTemp >= 170);
   engineBar.style.width = `${player.engine}%`;
   chassisBar.style.width = `${player.chassis}%`;
   fuelBar.style.width = `${player.fuel}%`;
@@ -675,14 +755,29 @@ function updateState(dt) {
   let terrain = sampleTerrain(player.x, player.y);
   const maxSpeed = stats.maxSpeed;
   const angularForce = state.lowRange ? 1.1 : 0.9;
+  const throttle = keyState.KeyW && !player.stalled && player.fuel > 0;
+  const boggedLoad = throttle && Math.abs(player.speed) < 12 && (terrain.type === 'mud' || terrain.type === 'peat' || terrain.type === 'water');
   const softGround = terrain.type === 'mud' || terrain.type === 'peat' || terrain.type === 'snow';
   const pressureBonus = softGround && state.tirePressure <= 18 ? 0.12 + (state.build.beadlocks ? 0.08 : 0) : 0;
   const terrainUpgradeBonus = (state.build.boggers && (terrain.type === 'mud' || terrain.type === 'peat') ? 0.18 : 0)
     + (state.build.chains && terrain.type === 'snow' ? 0.15 : 0);
   const effectiveTraction = clamp(terrain.traction * stats.traction * stats.diffMul * (state.awd ? 1 : 0.72) * (1 + pressureBonus + terrainUpgradeBonus), 0.12, 1.4);
 
-  if (keyState.KeyW) {
-    player.speed += stats.acceleration * dt * effectiveTraction;
+  if (player.stalled && keyState.KeyW && player.fuel > 0 && player.engine > 5) {
+    player.stallTimer = (player.stallTimer || 0) + dt;
+    if (player.stallTimer > 1.1) {
+      player.stalled = false;
+      player.stallTimer = 0;
+      showToast('ENGINE RESTARTED — WATCH THE WATER');
+    }
+  } else {
+    player.stallTimer = 0;
+  }
+
+  if (keyState.KeyW && !player.stalled && player.engine > 0 && player.fuel > 0) {
+    const engineHeatPenalty = player.engineTemp > 110 ? clamp(1 - (player.engineTemp - 110) * 0.006, 0.72, 1) : 1;
+    const clutchHeatPenalty = player.clutchTemp > 120 ? clamp(1 - (player.clutchTemp - 120) * 0.004, 0.78, 1) : 1;
+    player.speed += stats.acceleration * dt * effectiveTraction * (player.engine < 25 ? 0.55 : 1) * engineHeatPenalty * clutchHeatPenalty;
   }
   if (keyState.KeyS) {
     player.speed -= stats.braking * dt * 0.78;
@@ -716,6 +811,7 @@ function updateState(dt) {
   player.x = clamp(player.x, 30, world.width - 30);
   player.y = clamp(player.y, 30, world.height - 30);
   terrain = sampleTerrain(player.x, player.y);
+  deformGround(terrain, dt);
 
   if (terrain.type === 'water') {
     const riverPush = 0.15 + (player.speed * 0.02);
@@ -755,6 +851,13 @@ function updateState(dt) {
     if (player.waterDepth > stats.fordDepth + 0.15) {
       player.chassis = clamp(player.chassis - 0.012 * dt * 60, 0, 100);
     }
+    const intakeDepth = state.build.snorkel ? 1.15 : 0.78;
+    if (player.waterDepth > intakeDepth && !player.stalled) {
+      player.stalled = true;
+      player.speed *= 0.35;
+      player.engine = clamp(player.engine - 2.5, 0, 100);
+      showToast('ENGINE STALLED — BACK OUT AND RESTART', 2400);
+    }
   }
 
   if (state.winchActive && state.winchAnchor) {
@@ -785,7 +888,20 @@ function updateState(dt) {
     player.gearMode = state.lowRange ? 'LOW' : 'HIGH';
   }
 
-  player.rpm = 830 + Math.abs(player.speed) * 28 + (state.lowRange ? 150 : 0);
+  player.rpm = throttle
+    ? clamp(1150 + Math.abs(player.speed) * 38 + (boggedLoad ? 650 : 0) + (state.lowRange ? 180 : 0), 850, 4200)
+    : 830 + Math.abs(player.speed) * 28 + (state.lowRange ? 150 : 0);
+  const engineHeat = throttle ? 0.24 + (boggedLoad ? 0.56 : 0) + (player.rpm > 3000 ? 0.25 : 0) : 0;
+  const clutchHeat = boggedLoad && player.slip > 30 ? 0.85 + player.slip * 0.012 : 0;
+  const heatCooling = (terrain.type === 'water' ? 0.62 : Math.abs(player.speed) > 18 ? 0.42 : 0.2) + (state.build.radiatorRelocation ? 0.18 : 0);
+  player.engineTemp = clamp(player.engineTemp + (engineHeat - heatCooling) * dt * 5, 65, 165);
+  player.clutchTemp = clamp(player.clutchTemp + (clutchHeat - 0.34) * dt * 5, 30, 220);
+  if (player.engineTemp > 145) {
+    player.engine = clamp(player.engine - (player.engineTemp - 145) * 0.002 * dt * 60, 0, 100);
+  }
+  if (player.clutchTemp > 190) {
+    player.engine = clamp(player.engine - (player.clutchTemp - 190) * 0.001 * dt * 60, 0, 100);
+  }
   player.fuel = clamp(player.fuel - Math.abs(player.speed) * 0.004 * dt * 60, 0, 100);
   player.tyres = clamp(player.tyres - (player.slip / 220) * stats.tireWearMultiplier * dt * 60, 0, 100);
   player.engine = clamp(player.engine - (player.slip / 210) * (state.build.radiatorRelocation ? 0.88 : 1) * dt * 60, 0, 100);
@@ -1000,6 +1116,7 @@ window.addEventListener('keyup', (event) => {
 window.addEventListener('resize', resizeCanvas);
 
 resizeCanvas();
+renderCampaignTimeline();
 updateMission();
 bindGlobalControls();
 generateUpgradeGrid();
